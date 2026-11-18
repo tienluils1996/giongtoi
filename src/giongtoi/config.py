@@ -21,7 +21,8 @@ class Paths:
 
     @property
     def models(self) -> Path:
-        return self.root / "models"
+        """Mô hình đã tải — dùng chung, theo GIONGTOI_HOME (không theo thư mục dữ liệu)."""
+        return home_dir() / "models"
 
     @property
     def bakeoff(self) -> Path:
@@ -32,13 +33,19 @@ class Paths:
         return self.root / "giongtoi.sqlite3"
 
     def ensure(self) -> "Paths":
-        for p in (self.root, self.voices, self.projects, self.models, self.bakeoff):
+        for p in (self.root, self.voices, self.projects, self.bakeoff):
             p.mkdir(parents=True, exist_ok=True)
         return self
 
 
+def home_dir() -> Path:
+    """Hạ tầng: .venv, cache, mô hình."""
+    return Path(os.environ.get("GIONGTOI_HOME", Path.home() / "VoiceCloneData")).expanduser()
+
+
 def data_dir() -> Path:
-    return Path(os.environ.get("GIONGTOI_DATA_DIR", Path.home() / "VoiceCloneData")).expanduser()
+    """Dữ liệu người dùng: giọng, dự án, DB. Mặc định trùng GIONGTOI_HOME."""
+    return Path(os.environ.get("GIONGTOI_DATA_DIR", home_dir())).expanduser()
 
 
 def get_paths() -> Paths:

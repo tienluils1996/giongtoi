@@ -6,8 +6,8 @@
 set -euo pipefail
 source "$(dirname "$0")/env.sh"
 APP="$HOME/Applications/GiọngTôi.app"
-SNAP="$GIONGTOI_DATA_DIR/app"
-LOG="$GIONGTOI_DATA_DIR/app.log"
+SNAP="$GIONGTOI_HOME/app"
+LOG="$GIONGTOI_HOME/app.log"
 PY="$UV_PROJECT_ENVIRONMENT/bin/python"
 [ -x "$PY" ] || "$GIONGTOI_ROOT/scripts/setup.sh"
 

@@ -5,9 +5,9 @@
 set -euo pipefail
 source "$(dirname "$0")/env.sh"
 cd "$GIONGTOI_ROOT"
-mkdir -p "$GIONGTOI_DATA_DIR"
+mkdir -p "$GIONGTOI_HOME"
 
-EXTRAS_FILE="$GIONGTOI_DATA_DIR/.extras"
+EXTRAS_FILE="$GIONGTOI_HOME/.extras"
 extras="app $(cat "$EXTRAS_FILE" 2>/dev/null || true)"
 for arg in "$@"; do
   case "$arg" in
