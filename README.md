@@ -16,11 +16,11 @@ Không cần Homebrew. Script tự cài [uv](https://docs.astral.sh/uv/), Python
 
 ```bash
 ./scripts/setup.sh              # engine mặc định VieNeu-TTS (nhẹ, không cần PyTorch)
-./scripts/setup.sh --with-f5    # thêm F5-TTS để so sánh (cần PyTorch, ~2 GB)
+./scripts/setup.sh --with-f5    # thêm F5-TTS để so sánh (PyTorch + mô hình, ~8 GB)
 ./scripts/build_app.sh          # (tuỳ chọn) tạo ~/Applications/GiọngTôi.app
 ```
 
-Lần chạy đầu tiên sẽ tải mô hình về (VieNeu ~1 GB, F5 ~1,5 GB). Từ đó trở đi chạy hoàn toàn offline.
+Lần chạy đầu tiên sẽ tải mô hình về (VieNeu ~1 GB; F5 ~6 GB vì checkpoint gốc gồm cả trạng thái huấn luyện). Từ đó trở đi chạy hoàn toàn offline.
 
 ## Sử dụng
 

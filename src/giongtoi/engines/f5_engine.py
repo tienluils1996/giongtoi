@@ -6,6 +6,7 @@ Giấy phép mô hình: CC-BY-NC-SA-4.0 — chỉ dùng cá nhân, phi thương 
 from __future__ import annotations
 
 import os
+import random
 import threading
 from pathlib import Path
 
@@ -27,6 +28,24 @@ def _device() -> str:
     return "mps" if torch.backends.mps.is_available() else "cpu"
 
 
+def _patch_audio_loader() -> None:
+    """torchaudio>=2.9 đọc file qua torchcodec, vốn cần ffmpeg cài hệ thống (Homebrew).
+    Thay riêng hàm `load` mà f5_tts dùng bằng soundfile để không phụ thuộc Homebrew."""
+    import types
+
+    import soundfile as sf
+    import torch
+    import torchaudio
+    from f5_tts.infer import utils_infer
+
+    def load(path, *a, **k):
+        data, sr = sf.read(str(path), dtype="float32", always_2d=True)
+        return torch.from_numpy(data.T.copy()), sr
+
+    shim = types.SimpleNamespace(load=load, transforms=torchaudio.transforms)
+    utils_infer.torchaudio = shim
+
+
 class F5Engine:
     name = "f5"
     label = "F5-TTS Vietnamese"
@@ -39,6 +58,8 @@ class F5Engine:
         except ImportError as e:
             raise EngineUnavailable("Chưa cài F5-TTS: ./scripts/setup.sh --with-f5") from e
         from huggingface_hub import hf_hub_download
+
+        _patch_audio_loader()
 
         ckpt = hf_hub_download(REPO, CKPT)  # torch.load(weights_only=True) trong f5_tts → an toàn
         cfg = Path(hf_hub_download(REPO, "config.json"))
@@ -61,6 +82,9 @@ class F5Engine:
                 nfe_step=self.nfe_step,
                 remove_silence=False,
                 show_info=lambda *a, **k: None,
+                # f5_tts ghi seed vào PYTHONHASHSEED; seed mặc định (tới sys.maxsize) vượt giới hạn
+                # 2^32 và làm hỏng mọi tiến trình Python con khởi chạy sau đó.
+                seed=random.randint(0, 2**32 - 1),
             )
         self.sample_rate = int(sr)
         return np.asarray(wav, dtype=np.float32).reshape(-1)
