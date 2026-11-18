@@ -45,7 +45,10 @@ def _default_denoise():
 
 def create_app(studio: Studio | None = None, start_worker: bool = True) -> FastAPI:
     studio = studio or Studio(get_paths(), denoise_fn=_default_denoise())
-    worker = Worker(studio) if start_worker else None
+    preload = studio.store.get_setting("engine", default_engine())
+    if preload not in registry.FACTORIES or not registry.is_installed(preload):
+        preload = None
+    worker = Worker(studio, preload=preload) if start_worker else None
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):

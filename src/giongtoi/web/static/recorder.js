@@ -21,7 +21,8 @@
         audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 },
       });
     } catch (e) {
-      status.textContent = 'Không truy cập được micro: ' + e.message + '. Hãy cho phép quyền micro trong trình duyệt / Cài đặt hệ thống.';
+      status.textContent = 'Không truy cập được micro (' + e.message + '). Cho phép quyền micro trong Cài đặt hệ thống › Quyền riêng tư › Micro, '
+        + 'hoặc mở ' + location.origin + location.pathname + ' bằng Safari/Chrome để ghi âm.';
       return;
     }
     const mime = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm'].find((m) => MediaRecorder.isTypeSupported(m)) || '';

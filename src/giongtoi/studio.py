@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Callable
 
 import numpy as np
+import soundfile as sf
 
 from .audio import processing as ap
 from .config import Paths, default_engine
@@ -225,9 +226,10 @@ class Studio:
             pdir = self.paths.projects / str(project["id"]) / "segments"
             out = pdir / f"{seg['id']}-{int(time.time() * 1000)}.wav"
             pdir.mkdir(parents=True, exist_ok=True)
-            import soundfile as sf
-
             sf.write(out, audio, sr, subtype="PCM_16")
+            if not self.store.get_segment(seg["id"]):  # dự án bị xoá trong lúc đang đọc
+                shutil.rmtree(self.paths.projects / str(project["id"]), ignore_errors=True)
+                return
             if seg["audio_path"]:
                 self.abs(seg["audio_path"]).unlink(missing_ok=True)
             self.store.update_segment(
@@ -283,13 +285,20 @@ class Studio:
 class Worker(threading.Thread):
     """Luồng nền: chạy Studio.step() liên tục, nghỉ khi rảnh."""
 
-    def __init__(self, studio: Studio, idle_sleep: float = 0.5):
+    def __init__(self, studio: Studio, idle_sleep: float = 0.5, preload: str | None = None):
         super().__init__(daemon=True, name="giongtoi-worker")
         self.studio = studio
         self.idle_sleep = idle_sleep
+        self.preload = preload
         self._stop = threading.Event()
 
     def run(self) -> None:
+        if self.preload:  # nạp sẵn mô hình để lần đọc đầu tiên không phải chờ
+            try:
+                self.studio.get_engine(self.preload)
+                log.info("Đã nạp sẵn engine %s", self.preload)
+            except Exception as e:
+                log.warning("Không nạp sẵn được engine %s: %s", self.preload, e)
         while not self._stop.is_set():
             try:
                 busy = self.studio.step()

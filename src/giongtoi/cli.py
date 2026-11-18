@@ -10,6 +10,23 @@ import sys
 from pathlib import Path
 
 
+REQUIRED_REPOS = {
+    "vieneu": ["pnnbao-ump/VieNeu-TTS-v3-Turbo", "OpenMOSS-Team/MOSS-Audio-Tokenizer-Nano-ONNX"],
+    "f5": ["nst1511/F5-TTS-Vietnamese-ViVoice", "charactr/vocos-mel-24khz"],
+}
+
+
+def models_ready(hub: Path, engines: list[str]) -> bool:
+    """Mọi repo mô hình cần cho các engine đã cài đều có trong cache và tải xong."""
+    for name in engines:
+        for repo in REQUIRED_REPOS.get(name, []):
+            d = hub / ("models--" + repo.replace("/", "--"))
+            snaps = list((d / "snapshots").glob("*/*"))
+            if not snaps or list((d / "blobs").glob("*.incomplete")):
+                return False
+    return True
+
+
 def _setup_env() -> None:
     from .config import get_paths
 
@@ -17,6 +34,15 @@ def _setup_env() -> None:
     # mô hình tải về nằm trong ~/VoiceCloneData/models (ngoài OneDrive)
     os.environ.setdefault("HF_HOME", str(paths.models))
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    for noisy in ("httpx", "huggingface_hub"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
+    # đã tải đủ mô hình → chạy offline hoàn toàn (nhanh hơn, không gọi mạng)
+    if "HF_HUB_OFFLINE" not in os.environ:
+        from .engines import registry
+
+        installed = [n for n in REQUIRED_REPOS if registry.is_installed(n)]
+        if installed and models_ready(Path(os.environ["HF_HOME"]) / "hub", installed):
+            os.environ["HF_HUB_OFFLINE"] = "1"
 
 
 def free_port(preferred: int) -> int:

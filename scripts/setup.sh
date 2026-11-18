@@ -28,5 +28,6 @@ uv python install 3.11
 args=()
 for e in $extras; do args+=(--extra "$e"); done
 echo "→ Thư viện (extras: $extras)"
-uv sync --python 3.11 "${args[@]}"
+# --no-editable: cài bản sao vào .venv để app không phải đọc thư mục OneDrive
+uv sync --python 3.11 --no-editable "${args[@]}"
 echo "✓ Xong. Chạy app: ./scripts/run.sh"

@@ -11,4 +11,5 @@ if [ ! -x "$UV_PROJECT_ENVIRONMENT/bin/python" ]; then
 fi
 if [ $# -eq 0 ]; then set -- serve --open; fi
 # --no-sync: không gỡ các extra đã cài (vd f5)
-exec uv run --no-sync giongtoi "$@"
+# PYTHONPATH=src: luôn chạy code mới nhất trong thư mục dự án
+PYTHONPATH="$GIONGTOI_ROOT/src" exec uv run --no-sync giongtoi "$@"

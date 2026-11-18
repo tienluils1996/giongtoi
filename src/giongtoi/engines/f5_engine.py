@@ -6,15 +6,15 @@ Giấy phép mô hình: CC-BY-NC-SA-4.0 — chỉ dùng cá nhân, phi thương 
 from __future__ import annotations
 
 import os
-import shutil
 import threading
-from pathlib import Path
 
 import numpy as np
 
 from .base import EngineUnavailable, VoiceRef
 
-REPO = "hynt/F5-TTS-Vietnamese-ViVoice"
+# Bản chỉ chứa trọng số (1,5 GB) của hynt/F5-TTS-Vietnamese-ViVoice; bản gốc 5,4 GB gồm cả optimizer.
+REPO = "nst1511/F5-TTS-Vietnamese-ViVoice"
+CKPT = "model-bin.pt"
 
 
 def _device() -> str:
@@ -38,13 +38,10 @@ class F5Engine:
             raise EngineUnavailable("Chưa cài F5-TTS: ./scripts/setup.sh --with-f5") from e
         from huggingface_hub import hf_hub_download
 
-        ckpt = hf_hub_download(REPO, "model_last.pt")
-        cfg = Path(hf_hub_download(REPO, "config.json"))
-        vocab = cfg.with_name("vocab.txt")  # repo đặt vocab trong config.json
-        if not vocab.exists():
-            shutil.copy(cfg, vocab)
+        ckpt = hf_hub_download(REPO, CKPT)  # torch.load(weights_only=True) trong f5_tts → an toàn
+        vocab = hf_hub_download(REPO, "vocab.txt")
         self.nfe_step = nfe_step
-        self.tts = F5TTS(model="F5TTS_Base", ckpt_file=ckpt, vocab_file=str(vocab), device=_device())
+        self.tts = F5TTS(model="F5TTS_Base", ckpt_file=ckpt, vocab_file=vocab, device=_device())
         self._lock = threading.Lock()
 
     def synthesize(self, text: str, ref: VoiceRef, speed: float = 1.0) -> np.ndarray:

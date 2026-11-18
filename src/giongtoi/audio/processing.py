@@ -70,12 +70,28 @@ def load_audio(path: Path, target_sr: int | None = None) -> tuple[np.ndarray, in
 
 # ---------------------------------------------------------------- xử lý tín hiệu
 
-def trim_silence(x: np.ndarray, sr: int, top_db: float = 40, pad_ms: int = 80) -> np.ndarray:
-    import librosa
-
-    if len(x) == 0:
+def trim_silence(
+    x: np.ndarray, sr: int, top_db: float = 40, pad_ms: int = 80, frame: int = 1024, hop: int = 256
+) -> np.ndarray:
+    """Cắt khoảng lặng hai đầu (khung RMS thấp hơn đỉnh `top_db` dB). Numpy thuần, không cần librosa."""
+    if len(x) < frame:
         return x
-    _, (start, end) = librosa.effects.trim(x, top_db=top_db, frame_length=1024, hop_length=256)
+    n = 1 + (len(x) - frame) // hop
+    frames = np.lib.stride_tricks.as_strided(x, shape=(n, frame), strides=(x.strides[0] * hop, x.strides[0]))
+    rms = np.sqrt(np.mean(frames.astype(np.float64) ** 2, axis=1))
+    peak = rms.max()
+    if peak <= 1e-8:
+        return x
+    thr = peak * 10 ** (-top_db / 20)
+    loud = np.flatnonzero(rms > thr)
+    start, end = int(loud[0]) * hop, min(len(x), int(loud[-1]) * hop + frame)
+    # tinh chỉnh tới từng mẫu trong khung biên
+    head = np.flatnonzero(np.abs(x[start : start + frame]) > thr)
+    if head.size:
+        start += int(head[0])
+    tail = np.flatnonzero(np.abs(x[max(start, end - frame) : end]) > thr)
+    if tail.size:
+        end = max(start, end - frame) + int(tail[-1]) + 1
     pad = int(pad_ms / 1000 * sr)
     return x[max(0, start - pad) : min(len(x), end + pad)]
 
