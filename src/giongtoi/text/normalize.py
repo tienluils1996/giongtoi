@@ -249,6 +249,13 @@ def _ordinals(text: str) -> str:
     )
 
 
+def _range(m: re.Match) -> str:
+    a, b = m.group(1), m.group(2)
+    # "3-1" (số sau ≤ số trước) thường là tỉ số → đọc liền; ngược lại là khoảng "đến"
+    sep = " đến " if int(b) > int(a) else " "
+    return f"{_read_number(a)}{sep}{_read_number(b)}"
+
+
 def _units(text: str) -> str:
     keys = sorted(UNITS, key=len, reverse=True)
     alt = "|".join(re.escape(k) for k in keys)
@@ -289,17 +296,22 @@ def normalize(
     if english_mode == "vietnamize":
         text = _apply_english(text, prot)
 
-    text = re.sub(r"(?<!\d)0\d{8,10}(?!\d)", lambda m: digits_to_words(m.group(0)), text)
+    # số điện thoại: 0xxxxxxxxx, hoặc nhóm cách nhau bởi dấu cách / chấm / gạch
+    text = re.sub(
+        r"(?<![\d.,])0\d{2,3}(?:[ .-]\d{3,4}){2}(?![\d])|(?<![\d.,])0\d{8,10}(?!\d)",
+        lambda m: digits_to_words(m.group(0)),
+        text,
+    )
+    # gạch nối giữa chữ và số (COVID-19) → khoảng trắng
+    text = re.sub(f"(?:(?<=[^\\W\\d_])|(?<={_PH_CLOSE}))-(?=\\d)", " ", text)
     text = _dates(text)
     text = _times(text)
     text = _currency(text)
     text = re.sub(rf"({_NUM})\s?%", lambda m: f"{_read_number(m.group(1))} phần trăm", text)
     text = _ordinals(text)
-    text = re.sub(
-        r"(?<![\d\w])(\d+)\s?[-–]\s?(\d+)(?![\d\w])",
-        lambda m: f"{_read_number(m.group(1))} đến {_read_number(m.group(2))}",
-        text,
-    )
+    text = re.sub(r"(?<![\d\w])(\d+)\s?[-–]\s?(\d+)(?![\d\w])", _range, text)
+    # số âm: "-5" đứng đầu hoặc sau khoảng trắng / ngoặc
+    text = re.sub(r"(?:(?<=^)|(?<=[\s(]))[-−](?=\d)", "âm ", text)
     text = _units(text)
     text = re.sub(_NUM, lambda m: _read_number(m.group(0)), text)
     if english_mode == "vietnamize":

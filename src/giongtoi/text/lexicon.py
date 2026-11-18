@@ -68,7 +68,7 @@ ENGLISH: dict[str, str] = {
     "bye": "bai",
     "thanks": "thanh kiu",
     "sorry": "so ri",
-    "video": "vi đi ô",
+    "video": "vi đê ô",
     "livestream": "lai sờ trim",
     "stream": "sờ trim",
     "podcast": "pót cát",

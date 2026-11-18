@@ -85,3 +85,19 @@ def test_lowercase_word_matching_acronym_lexicon_not_replaced():
 
 def test_whitespace_collapsed():
     assert normalize("Xin   chào\n bạn") == "Xin chào bạn"
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("Gọi 028 3822 1234", "Gọi không hai tám ba tám hai hai một hai ba bốn"),
+        ("Gọi 0901.234.567 nhé", "Gọi không chín không một hai ba bốn năm sáu bảy nhé"),
+        ("Nhiệt độ -5°C", "Nhiệt độ âm năm độ xê"),
+        ("Đội tuyển thắng 3-1", "Đội tuyển thắng ba một"),
+        ("COVID-19 năm 2020", "cô vít mười chín năm hai nghìn không trăm hai mươi"),
+        ("Giá $999", "Giá chín trăm chín mươi chín đô la"),
+        ("Phiên bản 2-3 ngày", "Phiên bản hai đến ba ngày"),
+    ],
+)
+def test_normalize_edge_cases(text, expected):
+    assert normalize(text) == expected
