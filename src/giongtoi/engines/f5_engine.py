@@ -7,14 +7,16 @@ from __future__ import annotations
 
 import os
 import threading
+from pathlib import Path
 
 import numpy as np
 
 from .base import EngineUnavailable, VoiceRef
 
-# Bản chỉ chứa trọng số (1,5 GB) của hynt/F5-TTS-Vietnamese-ViVoice; bản gốc 5,4 GB gồm cả optimizer.
-REPO = "nst1511/F5-TTS-Vietnamese-ViVoice"
-CKPT = "model-bin.pt"
+# Checkpoint gốc của tác giả (5,4 GB, gồm cả trạng thái optimizer). Các bản mirror nhẹ hơn
+# dùng định dạng .tar cũ, chỉ nạp được khi tắt weights_only (không an toàn) nên không dùng.
+REPO = "hynt/F5-TTS-Vietnamese-ViVoice"
+CKPT = "model_last.pt"
 
 
 def _device() -> str:
@@ -39,9 +41,12 @@ class F5Engine:
         from huggingface_hub import hf_hub_download
 
         ckpt = hf_hub_download(REPO, CKPT)  # torch.load(weights_only=True) trong f5_tts → an toàn
-        vocab = hf_hub_download(REPO, "vocab.txt")
+        cfg = Path(hf_hub_download(REPO, "config.json"))
+        vocab = cfg.parent / "vocab.txt"  # repo này đặt bảng ký tự trong config.json
+        if not vocab.exists():
+            vocab.write_bytes(cfg.read_bytes())
         self.nfe_step = nfe_step
-        self.tts = F5TTS(model="F5TTS_Base", ckpt_file=ckpt, vocab_file=vocab, device=_device())
+        self.tts = F5TTS(model="F5TTS_Base", ckpt_file=ckpt, vocab_file=str(vocab), device=_device())
         self._lock = threading.Lock()
 
     def synthesize(self, text: str, ref: VoiceRef, speed: float = 1.0) -> np.ndarray:

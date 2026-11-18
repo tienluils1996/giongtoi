@@ -12,7 +12,7 @@ from pathlib import Path
 
 REQUIRED_REPOS = {
     "vieneu": ["pnnbao-ump/VieNeu-TTS-v3-Turbo", "OpenMOSS-Team/MOSS-Audio-Tokenizer-Nano-ONNX"],
-    "f5": ["nst1511/F5-TTS-Vietnamese-ViVoice", "charactr/vocos-mel-24khz"],
+    "f5": ["hynt/F5-TTS-Vietnamese-ViVoice", "charactr/vocos-mel-24khz"],
 }
 
 
