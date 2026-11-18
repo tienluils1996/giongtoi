@@ -120,7 +120,31 @@ class Studio:
             ref = self.store.default_ref(voice_id)
         if ref is None:
             raise ValueError("Chưa có mẫu giọng. Hãy ghi âm hoặc tải lên mẫu giọng trước.")
-        return VoiceRef(self.abs(ref["audio_path"]), ref["transcript"])
+        extras = tuple(self.abs(r["audio_path"]) for r in self.store.list_refs(ref["voice_id"])
+                       if r["id"] != ref["id"] and self.abs(r["audio_path"]).exists())
+        return VoiceRef(self.abs(ref["audio_path"]), ref["transcript"], extras)
+
+    def merge_voices(self, target: str, source: str) -> None:
+        """Chuyển toàn bộ mẫu (và dự án) của hồ sơ `source` sang `target`, rồi xoá `source`."""
+        if target == source:
+            raise ValueError("Không thể gộp hồ sơ vào chính nó.")
+        if not (self.store.get_voice(target) and self.store.get_voice(source)):
+            raise ValueError("Không tìm thấy hồ sơ giọng.")
+        for r in self.store.list_refs(source):
+            moved = {}
+            for key in ("audio_path", "raw_path"):
+                if not r[key]:
+                    continue
+                src = self.abs(r[key])
+                dst = self.paths.voices / target / Path(r[key]).parent.name / src.name
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                if src.exists():
+                    shutil.move(src, dst)
+                moved[key] = self.rel(dst)
+            self.store.move_ref(r["id"], target, **moved)
+        self.store.reassign_projects(source, target)
+        self.store.delete_voice(source)
+        shutil.rmtree(self.paths.voices / source, ignore_errors=True)
 
     # ------------------------------------------------------------ dự án đọc
     def create_project(

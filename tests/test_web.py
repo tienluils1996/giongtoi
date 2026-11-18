@@ -126,3 +126,21 @@ def test_create_voice_with_bad_audio_leaves_no_empty_profile(client, studio):
 def test_voices_page_offers_mic_and_file(client):
     html = client.get("/voices").text
     assert 'id="rec-btn"' in html and 'type="file"' in html
+
+
+def test_add_sample_to_existing_voice_via_create_form(client, studio):
+    vid = studio.create_voice("Giọng của tôi")
+    r = client.post("/api/voices", files={"file": ("rec.wav", wav_bytes(), "audio/wav")},
+                    data={"name": "", "voice_id": vid, "denoise": "0"})
+    assert r.status_code == 200 and r.json()["voice_id"] == vid
+    assert len(studio.store.list_voices()) == 1
+    assert len(studio.store.list_refs(vid)) == 1
+
+
+def test_merge_voice_route(client, studio):
+    a, b = studio.create_voice("A"), studio.create_voice("B")
+    client.post(f"/api/voices/{b}/refs", files={"file": ("a.wav", wav_bytes(), "audio/wav")}, data={"denoise": "0"})
+    r = client.post(f"/voices/{a}/merge", data={"source": b}, follow_redirects=False)
+    assert r.status_code == 303
+    assert [v["id"] for v in studio.store.list_voices()] == [a]
+    assert len(studio.store.list_refs(a)) == 1

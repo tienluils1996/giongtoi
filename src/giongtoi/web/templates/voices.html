@@ -15,8 +15,18 @@
 {% endif %}
 
 <div class="card" id="new-voice">
-  <h2 class="card-title">Tạo hồ sơ giọng mới</h2>
-  <label>Tên hồ sơ <input id="nv-name" placeholder="Ví dụ: Giọng của tôi" value="{{ 'Giọng của tôi' if not voices else '' }}"></label>
+  <h2 class="card-title">{{ 'Thêm mẫu giọng' if voices else 'Tạo hồ sơ giọng mới' }}</h2>
+  {% if voices %}
+  <p class="muted small">Càng nhiều mẫu của cùng một người trong <b>một hồ sơ</b>, giọng clone càng ổn định:
+    VieNeu lấy trung bình đặc trưng giọng của tất cả mẫu, còn mẫu ★ quyết định ngữ điệu.</p>
+  <label>Thêm vào hồ sơ
+    <select id="nv-target">
+      {% for v in voices %}<option value="{{ v.id }}" data-n="{{ refs[v.id]|length }}">{{ v.name }} ({{ refs[v.id]|length }} mẫu)</option>{% endfor %}
+      <option value="">+ Tạo hồ sơ mới…</option>
+    </select>
+  </label>
+  {% endif %}
+  <label id="nv-name-row" {{ 'hidden' if voices }}>Tên hồ sơ mới <input id="nv-name" placeholder="Ví dụ: Giọng của tôi" value="{{ 'Giọng của tôi' if not voices else '' }}"></label>
 
   <div class="tabs" role="tablist">
     <button class="tab active" data-tab="mic" role="tab">🎙 Thu âm từ micro</button>
@@ -54,7 +64,7 @@
     <label class="check"><input type="checkbox" id="nv-denoise" checked> Khử ồn</label>
     <span class="grow"></span>
     <span class="muted small" id="nv-status"></span>
-    <button class="primary" id="nv-save">Tạo hồ sơ giọng</button>
+    <button class="primary" id="nv-save">{{ 'Lưu mẫu' if voices else 'Tạo hồ sơ giọng' }}</button>
   </div>
 </div>
 {% endblock %}
@@ -66,7 +76,21 @@
 (function () {
   const $ = (id) => document.getElementById(id);
   let tab = 'mic', promptIdx = 0;
-  const transcript = $('nv-transcript'), st = $('nv-status');
+  const transcript = $('nv-transcript'), st = $('nv-status'), target = $('nv-target');
+  const targetId = () => (target ? target.value : '');
+  // gợi ý câu tiếp theo chưa đọc (mỗi mẫu một câu khác nhau → đa dạng âm tiết)
+  const pickPrompt = () => {
+    const n = target && target.value ? +target.selectedOptions[0].dataset.n : 0;
+    promptIdx = n % PROMPTS.length;
+    $('nv-prompt').textContent = PROMPTS[promptIdx];
+    if (tab === 'mic') transcript.value = PROMPTS[promptIdx];
+  };
+  pickPrompt();
+  if (target) target.addEventListener('change', () => {
+    pickPrompt();
+    $('nv-name-row').hidden = !!target.value;
+    $('nv-save').textContent = target.value ? 'Lưu mẫu' : 'Tạo hồ sơ giọng';
+  });
 
   const mic = createMic({
     btn: $('rec-btn'), meter: $('meter-bar'), timeEl: $('rec-time'), status: $('rec-status'),
@@ -105,6 +129,7 @@
       if (!f) { st.textContent = 'Hãy chọn một file âm thanh.'; return; }
       fd.append('file', f, f.name);
     }
+    fd.append('voice_id', targetId());
     fd.append('name', $('nv-name').value.trim() || 'Giọng của tôi');
     fd.append('transcript', transcript.value.trim());
     fd.append('denoise', $('nv-denoise').checked ? '1' : '0');
@@ -113,7 +138,11 @@
     const r = await fetch('/api/voices', { method: 'POST', body: fd });
     $('nv-save').disabled = false;
     if (!r.ok) { st.textContent = 'Lỗi: ' + (await r.json()).detail; return; }
-    location.href = '/voices/' + (await r.json()).voice_id;
+    const vid = (await r.json()).voice_id;
+    if (targetId()) {  // thêm vào hồ sơ có sẵn: ở lại để ghi tiếp câu khác
+      st.textContent = 'Đã lưu mẫu ✓ Đọc tiếp câu mới nhé.';
+      setTimeout(() => location.reload(), 900);
+    } else location.href = '/voices/' + vid;
   });
 })();
 </script>

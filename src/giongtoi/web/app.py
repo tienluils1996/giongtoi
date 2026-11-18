@@ -217,8 +217,9 @@ def create_app(studio: Studio | None = None, start_worker: bool = True) -> FastA
             raise HTTPException(404)
         refs = studio.store.list_refs(vid)
         recorded = {r["transcript"] for r in refs}
+        others = [o for o in studio.store.list_voices() if o["id"] != vid]
         return render(request, "voice.html", voice=v, refs=refs, prompts=RECORDING_PROMPTS,
-                      recorded=recorded)
+                      recorded=recorded, others=others)
 
     async def save_upload(vid: str, file: UploadFile, transcript: str, label: str, denoise: str) -> int:
         suffix = Path(file.filename or "rec.webm").suffix or ".webm"
@@ -233,10 +234,15 @@ def create_app(studio: Studio | None = None, start_worker: bool = True) -> FastA
                 raise HTTPException(400, f"Không xử lý được file âm thanh: {e}")
 
     @app.post("/api/voices")
-    async def create_voice_with_sample(name: str = Form(...), file: UploadFile = File(...),
+    async def create_voice_with_sample(name: str = Form(""), file: UploadFile = File(...),
                                        transcript: str = Form(""), label: str = Form("bình thường"),
-                                       denoise: str = Form("1")):
-        """Tạo hồ sơ giọng + mẫu đầu tiên trong một bước (thu âm mic hoặc chọn file)."""
+                                       denoise: str = Form("1"), voice_id: str = Form("")):
+        """Thêm mẫu (thu âm mic hoặc chọn file) vào hồ sơ có sẵn, hoặc tạo hồ sơ mới cùng lúc."""
+        if voice_id:
+            if not studio.store.get_voice(voice_id):
+                raise HTTPException(404, "Không tìm thấy hồ sơ giọng")
+            rid = await save_upload(voice_id, file, transcript, label, denoise)
+            return {"voice_id": voice_id, "ref": studio.store.get_ref(rid)}
         vid = studio.create_voice(name.strip() or "Giọng của tôi")
         try:
             rid = await save_upload(vid, file, transcript, label, denoise)
@@ -266,6 +272,14 @@ def create_app(studio: Studio | None = None, start_worker: bool = True) -> FastA
     @app.post("/voices/{vid}/refs/{rid}/delete")
     def delete_ref(vid: str, rid: int):
         studio.delete_reference(rid)
+        return RedirectResponse(f"/voices/{vid}", status_code=303)
+
+    @app.post("/voices/{vid}/merge")
+    def merge_voice(vid: str, source: str = Form(...)):
+        try:
+            studio.merge_voices(target=vid, source=source)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
         return RedirectResponse(f"/voices/{vid}", status_code=303)
 
     @app.post("/voices/{vid}/delete")

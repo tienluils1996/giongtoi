@@ -53,6 +53,12 @@
 </form>
 
 <h2>Các mẫu giọng ({{ refs|length }})</h2>
+{% if refs|length > 1 %}
+<p class="notice">VieNeu đang dùng <b>cả {{ refs|length }} mẫu</b> để tổng hợp đặc trưng giọng ({{ '%.0f'|format(refs|sum(attribute='duration')) }} giây).
+  Mẫu ★ quyết định ngữ điệu và nhịp đọc, nên hãy chọn mẫu tự nhiên nhất, dài 6–8 giây. Mẫu nào bị ồn, méo hoặc không phải giọng bạn thì xoá đi.</p>
+{% elif refs %}
+<p class="notice">Mới có 1 mẫu. Ghi thêm 5–20 câu để giọng clone ổn định và giống hơn.</p>
+{% endif %}
 {% if not refs %}<p class="muted">Chưa có mẫu nào.</p>{% endif %}
 <ul class="refs">
 {% for r in refs %}
@@ -74,6 +80,17 @@
   </li>
 {% endfor %}
 </ul>
+
+{% if others %}
+<h2>Gộp hồ sơ</h2>
+<form class="card row" method="post" action="/voices/{{ voice.id }}/merge"
+      onsubmit="return confirm('Chuyển toàn bộ mẫu của hồ sơ đã chọn sang “{{ voice.name }}” và xoá hồ sơ kia?')">
+  <label class="grow">Chuyển mọi mẫu từ hồ sơ
+    <select name="source">{% for o in others %}<option value="{{ o.id }}">{{ o.name }} ({{ o.id }})</option>{% endfor %}</select>
+  </label>
+  <button class="secondary">Gộp vào hồ sơ này</button>
+</form>
+{% endif %}
 
 <form method="post" action="/voices/{{ voice.id }}/delete" onsubmit="return confirm('Xoá hồ sơ giọng và toàn bộ mẫu?')">
   <button class="danger">Xoá hồ sơ giọng</button>

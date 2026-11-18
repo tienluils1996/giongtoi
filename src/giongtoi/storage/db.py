@@ -153,6 +153,18 @@ class Store:
             c.execute("UPDATE voice_refs SET is_default=0 WHERE voice_id=?", (ref["voice_id"],))
             c.execute("UPDATE voice_refs SET is_default=1 WHERE id=?", (ref_id,))
 
+    def move_ref(self, ref_id: int, voice_id: str, audio_path: str, raw_path: str | None = None) -> None:
+        """Chuyển mẫu sang hồ sơ khác; bỏ ★ nếu hồ sơ đích đã có mẫu mặc định."""
+        has_default = self._one("SELECT 1 FROM voice_refs WHERE voice_id=? AND is_default=1", (voice_id,))
+        self._exec(
+            "UPDATE voice_refs SET voice_id=?, audio_path=?, raw_path=COALESCE(?, raw_path),"
+            " is_default=CASE WHEN ? THEN 0 ELSE is_default END WHERE id=?",
+            (voice_id, audio_path, raw_path, 1 if has_default else 0, ref_id),
+        )
+
+    def reassign_projects(self, old_voice: str, new_voice: str) -> None:
+        self._exec("UPDATE projects SET voice_id=? WHERE voice_id=?", (new_voice, old_voice))
+
     def update_ref(self, ref_id: int, **fields) -> None:
         self._update("voice_refs", ref_id, fields)
 

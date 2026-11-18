@@ -122,3 +122,31 @@ def test_restart_resumes_running_project(tmp_path, engine, voice, studio):
     again = Studio(studio.paths, engine_getter=lambda n: engine, denoise_fn=None)
     again.run_until_idle()
     assert again.store.get_project(pid)["status"] == "done"
+
+
+def test_voice_ref_includes_other_samples_of_same_voice(studio, voice, tmp_path):
+    studio.add_reference(voice, make_wav(tmp_path / "b.wav", 5), transcript="câu hai")
+    studio.add_reference(voice, make_wav(tmp_path / "c.wav", 6), transcript="câu ba")
+    ref = studio.voice_ref(voice)
+    assert ref.transcript == "xin chào các bạn"  # mẫu ★ vẫn là mẫu chính
+    assert len(ref.extra_audio) == 2 and ref.audio_path not in ref.extra_audio
+    assert all(p.exists() for p in ref.extra_audio)
+
+
+def test_merge_voices_moves_samples_files_and_projects(studio, voice, tmp_path):
+    other = studio.create_voice("Giọng của tôi")
+    studio.add_reference(other, make_wav(tmp_path / "b.wav"), transcript="câu hai")
+    pid = studio.create_project("Xin chào.", other)
+    studio.merge_voices(target=voice, source=other)
+    assert studio.store.get_voice(other) is None
+    refs = studio.store.list_refs(voice)
+    assert len(refs) == 2 and sum(r["is_default"] for r in refs) == 1
+    for r in refs:
+        assert r["audio_path"].startswith(f"voices/{voice}/") and studio.abs(r["audio_path"]).exists()
+    assert not (studio.paths.voices / other).exists()
+    assert studio.store.get_project(pid)["voice_id"] == voice
+
+
+def test_merge_voice_into_itself_rejected(studio, voice):
+    with pytest.raises(ValueError):
+        studio.merge_voices(target=voice, source=voice)

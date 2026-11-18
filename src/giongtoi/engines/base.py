@@ -15,6 +15,8 @@ class VoiceRef:
 
     audio_path: Path
     transcript: str = ""
+    # Các mẫu khác của cùng hồ sơ: engine nào hỗ trợ sẽ dùng để tổng hợp đặc trưng giọng ổn định hơn.
+    extra_audio: tuple[Path, ...] = ()
 
 
 class Engine(Protocol):
