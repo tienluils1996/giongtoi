@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>So sánh mô hình (nghe mù)</h1>
+<div class="card">
+  <p>Cùng một mẫu giọng của bạn được đưa cho từng mô hình đọc 8 câu thử. File được đặt tên ngẫu nhiên A/B/C. Bạn nghe, chấm điểm 1–5, rồi mới bấm “Hiện tên mô hình”.</p>
+  <p>Tạo một lượt so sánh mới (cần có ít nhất một mẫu giọng):</p>
+  <pre>./scripts/bakeoff.sh{% if voices %} --voice {{ voices[0].id }}{% endif %}</pre>
+  <p class="muted small">Muốn thêm F5-TTS vào so sánh: chạy <code>./scripts/setup.sh --with-f5</code> trước (tải PyTorch, ~1–2 GB).</p>
+</div>
+
+<h2>Các lượt đã chạy</h2>
+{% if not runs %}<p class="muted">Chưa có lượt nào.</p>{% endif %}
+<ul class="list">
+{% for r in runs %}
+  <li><a href="/media/{{ r }}" target="_blank">{{ r.split('/')[1] }}</a></li>
+{% endfor %}
+</ul>
+{% endblock %}

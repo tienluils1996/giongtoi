@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Giọng của tôi</h1>
+<p class="muted">Mỗi hồ sơ giọng chứa nhiều mẫu tham chiếu (ví dụ “bình thường”, “hào hứng”). Mẫu có dấu ★ được dùng mặc định.</p>
+
+<div class="cards">
+{% for v in voices %}
+  <a class="card voice" href="/voices/{{ v.id }}">
+    <strong>{{ v.name }}</strong>
+    <span class="muted">{{ refs[v.id]|length }} mẫu giọng · {{ '%.0f'|format(refs[v.id]|sum(attribute='duration')) }} giây</span>
+  </a>
+{% endfor %}
+</div>
+
+<form class="card row" method="post" action="/voices">
+  <label class="grow">Tạo hồ sơ giọng mới <input name="name" placeholder="Ví dụ: Giọng của tôi" required></label>
+  <button class="primary">Tạo</button>
+</form>
+{% endblock %}

@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+.DS_Store
+# dữ liệu giọng & audio không bao giờ vào git
+*.wav
+*.mp3
+*.webm
+*.m4a
+*.sqlite3

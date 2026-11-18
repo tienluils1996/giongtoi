@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}{{ project.title }} · {{ APP_NAME }}{% endblock %}
+{% block content %}
+<div class="head">
+  <h1>{{ project.title }}</h1>
+  <span class="badge {{ project.status }}" id="status">{{ status_label }}</span>
+</div>
+
+<div class="card">
+  <div class="progress"><div id="bar" style="width: {{ (100 * n_done / n_total) if n_total else 0 }}%"></div></div>
+  <div class="row small">
+    <span id="progress-text">{{ n_done }}/{{ n_total }} câu{% if n_error %} · {{ n_error }} lỗi{% endif %}</span>
+    <span class="muted" id="eta"></span>
+    <span class="grow"></span>
+    {% if project.status in ('queued', 'running') %}
+      <form method="post" action="/projects/{{ project.id }}/pause"><button class="secondary">Tạm dừng</button></form>
+    {% elif project.status in ('paused', 'error', 'draft') %}
+      <form method="post" action="/projects/{{ project.id }}/resume"><button class="primary">Tiếp tục</button></form>
+    {% endif %}
+  </div>
+  {% if project.error %}<div class="notice error">{{ project.error }}</div>{% endif %}
+  <p class="muted small">Mô hình: {{ project.engine }} · tốc độ {{ '%.2f'|format(project.speed) }}× · nghỉ câu {{ project.pause_sentence_ms }} ms · nghỉ đoạn {{ project.pause_paragraph_ms }} ms</p>
+</div>
+
+<h2>Kết quả</h2>
+<div id="chapters">
+{% for ch in chapters %}
+  <div class="card chapter">
+    <strong>{{ loop.index }}. {{ ch.title }}</strong>
+    {% if ch.wav_path %}
+      <audio controls preload="none" src="/media/{{ ch.mp3_path }}"></audio>
+      <span class="muted small">{{ '%d:%02d'|format(ch.duration // 60, ch.duration % 60) }}</span>
+      <a class="btn" href="/media/{{ ch.wav_path }}?download=1">WAV</a>
+      <a class="btn" href="/media/{{ ch.mp3_path }}?download=1">MP3</a>
+    {% else %}
+      <span class="muted">Chưa ghép xong</span>
+    {% endif %}
+  </div>
+{% endfor %}
+</div>
+
+<details class="card">
+  <summary>Chỉnh tốc độ / khoảng nghỉ</summary>
+  <form method="post" action="/projects/{{ project.id }}/settings" class="grid">
+    <label>Tốc độ <input type="number" name="speed" step="0.05" min="0.5" max="2" value="{{ project.speed }}"></label>
+    <label>Nghỉ giữa câu (ms) <input type="number" name="pause_sentence_ms" step="50" min="0" value="{{ project.pause_sentence_ms }}"></label>
+    <label>Nghỉ giữa đoạn (ms) <input type="number" name="pause_paragraph_ms" step="50" min="0" value="{{ project.pause_paragraph_ms }}"></label>
+    <label class="check"><input type="checkbox" name="regenerate_all" value="1"> Đọc lại toàn bộ (cần nếu đổi tốc độ)</label>
+    <button class="primary">Áp dụng</button>
+  </form>
+</details>
+
+<h2>Từng câu</h2>
+<p class="muted small">Nghe từng câu; câu nào đọc sai thì sửa chữ (ví dụ viết lại cách đọc) rồi bấm “Đọc lại”. Chương sẽ tự ghép lại.</p>
+<ol class="segments" id="segments">
+{% for s in segments %}
+  <li data-id="{{ s.id }}" class="seg {{ s.status }}">
+    <div class="seg-text" contenteditable="true" spellcheck="false">{{ s.text }}</div>
+    <div class="seg-actions">
+      <span class="badge {{ s.status }}">{{ STATUS.get(s.status, s.status) }}</span>
+      <button class="icon play" title="Nghe" {{ '' if s.audio_path else 'disabled' }} data-src="{{ '/media/' ~ s.audio_path if s.audio_path else '' }}">▶</button>
+      <button class="icon redo" title="Đọc lại câu này">↻ Đọc lại</button>
+    </div>
+    {% if s.error %}<div class="seg-error">{{ s.error }}</div>{% endif %}
+  </li>
+{% endfor %}
+</ol>
+
+<form method="post" action="/projects/{{ project.id }}/delete" onsubmit="return confirm('Xoá dự án này và toàn bộ audio?')">
+  <button class="danger">Xoá dự án</button>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const PID = {{ project.id }};
+  const ACTIVE = ['queued', 'running'];
+  let lastStatus = {{ project.status|tojson }};
+  let lastDone = {{ n_done }};
+  const player = new Audio();
+
+  document.getElementById('segments').addEventListener('click', async (e) => {
+    const li = e.target.closest('li.seg'); if (!li) return;
+    if (e.target.classList.contains('play')) {
+      player.src = e.target.dataset.src + '?t=' + Date.now(); player.play();
+    }
+    if (e.target.classList.contains('redo')) {
+      const fd = new FormData(); fd.append('text', li.querySelector('.seg-text').innerText.trim());
+      e.target.disabled = true;
+      await fetch(`/api/segments/${li.dataset.id}/regenerate`, {method: 'POST', body: fd});
+      li.className = 'seg pending'; li.querySelector('.badge').textContent = 'Chờ';
+      li.querySelector('.badge').className = 'badge pending';
+      poll();
+    }
+  });
+
+  function fmt(sec) { const m = Math.floor(sec / 60), s = sec % 60; return m ? `${m} phút ${s} giây` : `${s} giây`; }
+
+  async function poll() {
+    const r = await fetch(`/api/projects/${PID}`); if (!r.ok) return;
+    const d = await r.json();
+    document.getElementById('bar').style.width = (d.n_total ? 100 * d.n_done / d.n_total : 0) + '%';
+    document.getElementById('progress-text').textContent = `${d.n_done}/${d.n_total} câu` + (d.n_error ? ` · ${d.n_error} lỗi` : '');
+    document.getElementById('eta').textContent = d.eta_seconds ? `còn khoảng ${fmt(d.eta_seconds)}` : '';
+    const st = document.getElementById('status'); st.textContent = d.status_label; st.className = 'badge ' + d.project.status;
+    for (const s of d.segments) {
+      const li = document.querySelector(`li.seg[data-id="${s.id}"]`); if (!li) continue;
+      li.className = 'seg ' + s.status;
+      const b = li.querySelector('.badge'); b.className = 'badge ' + s.status;
+      b.textContent = {pending: 'Chờ', done: 'Hoàn tất', error: 'Có lỗi'}[s.status] || s.status;
+      const play = li.querySelector('.play');
+      if (s.audio_path) { play.disabled = false; play.dataset.src = '/media/' + s.audio_path; }
+      li.querySelector('.redo').disabled = false;
+    }
+    const changed = d.project.status !== lastStatus;
+    lastStatus = d.project.status; lastDone = d.n_done;
+    if (ACTIVE.includes(d.project.status)) setTimeout(poll, 1500);
+    else if (changed) location.reload();
+  }
+  if (ACTIVE.includes(lastStatus)) setTimeout(poll, 1000);
+</script>
+{% endblock %}

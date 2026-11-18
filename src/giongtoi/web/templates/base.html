@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ APP_NAME }}{% endblock %}</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/"><span class="logo">◉</span> {{ APP_NAME }}</a>
+    <nav>
+      {% set p = request.url.path %}
+      <a href="/" class="{{ 'on' if p == '/' }}">Đọc văn bản</a>
+      <a href="/projects" class="{{ 'on' if p.startswith('/projects') }}">Lịch sử</a>
+      <a href="/voices" class="{{ 'on' if p.startswith('/voices') }}">Giọng của tôi</a>
+      <a href="/lexicon" class="{{ 'on' if p.startswith('/lexicon') }}">Từ điển</a>
+      <a href="/bakeoff" class="{{ 'on' if p.startswith('/bakeoff') }}">So sánh mô hình</a>
+    </nav>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+  <footer>{{ APP_NAME }} v{{ VERSION }} · chạy offline trên máy của bạn · audio xuất ra được gắn nhãn "AI-generated"</footer>
+  <script src="/static/app.js"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

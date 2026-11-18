@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Lịch sử</h1>
+{% if not projects %}
+  <p class="muted">Chưa có bản đọc nào. <a href="/">Tạo bản đầu tiên</a>.</p>
+{% else %}
+<table class="table">
+  <thead><tr><th>Tiêu đề</th><th>Trạng thái</th><th>Tiến độ</th><th>Mô hình</th><th>Cập nhật</th></tr></thead>
+  <tbody>
+  {% for p in projects %}
+    <tr>
+      <td><a href="/projects/{{ p.id }}">{{ p.title }}</a></td>
+      <td><span class="badge {{ p.status }}">{{ STATUS[p.status] }}</span></td>
+      <td>{{ p.n_done }}/{{ p.n_total }}{% if p.n_error %} <span class="err">({{ p.n_error }} lỗi)</span>{% endif %}</td>
+      <td class="muted">{{ p.engine }}</td>
+      <td class="muted" data-ts="{{ p.updated_at }}"></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

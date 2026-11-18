@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Từ điển phát âm</h1>
+<p class="muted">Thêm từ mà giọng đọc hay đọc sai. Từ có chữ HOA (vd “AI”) chỉ khớp đúng kiểu viết đó; từ viết thường khớp mọi kiểu viết. Từ điển của bạn được ưu tiên hơn từ điển mặc định.</p>
+
+<form class="card row" method="post" action="/lexicon">
+  <label class="grow">Từ / cụm từ <input name="term" placeholder="Ví dụ: Netflix" required></label>
+  <label class="grow">Cách đọc <input name="reading" placeholder="Ví dụ: nét phlích" required></label>
+  <button class="primary">Thêm</button>
+</form>
+
+<div class="card">
+  <label>Thử chuẩn hoá một câu
+    <input id="try" placeholder="Ví dụ: Ngày 2/9/2025 tôi xem Netflix lúc 20h30, giá 99.000đ">
+  </label>
+  <pre class="preview" id="try-out">…</pre>
+</div>
+
+<h2>Từ điển của bạn ({{ entries|length }})</h2>
+{% if entries %}
+<table class="table">
+  <thead><tr><th>Từ</th><th>Cách đọc</th><th></th></tr></thead>
+  <tbody>
+  {% for term, reading in entries.items() %}
+    <tr><td>{{ term }}</td><td>{{ reading }}</td>
+      <td><form method="post" action="/lexicon/delete"><input type="hidden" name="term" value="{{ term }}"><button class="danger small">Xoá</button></form></td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}<p class="muted">Chưa có từ nào.</p>{% endif %}
+
+<details class="card">
+  <summary>Từ điển mặc định ({{ defaults_en|length + defaults_abbr|length }} mục)</summary>
+  <div class="cols">
+    <table class="table small"><thead><tr><th>Viết tắt</th><th>Đọc</th></tr></thead><tbody>
+      {% for k, v in defaults_abbr.items() %}<tr><td>{{ k }}</td><td>{{ v }}</td></tr>{% endfor %}
+    </tbody></table>
+    <table class="table small"><thead><tr><th>Tiếng Anh</th><th>Việt hoá</th></tr></thead><tbody>
+      {% for k, v in defaults_en.items() %}<tr><td>{{ k }}</td><td>{{ v }}</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+</details>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let t;
+  document.getElementById('try').addEventListener('input', (e) => {
+    clearTimeout(t);
+    t = setTimeout(async () => {
+      const fd = new FormData(); fd.append('text', e.target.value);
+      const r = await fetch('/api/preview', {method: 'POST', body: fd});
+      document.getElementById('try-out').textContent = (await r.json()).text || '…';
+    }, 250);
+  });
+</script>
+{% endblock %}

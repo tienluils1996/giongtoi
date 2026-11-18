@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Đọc văn bản bằng giọng của bạn</h1>
+
+{% if not voices or not voice_refs.values()|select|list %}
+<div class="notice">
+  Bạn chưa có mẫu giọng nào. <a href="/voices">Vào “Giọng của tôi”</a> để ghi âm vài câu mẫu (khoảng 2 phút) trước khi tạo giọng đọc.
+</div>
+{% endif %}
+
+<form class="card" method="post" action="/projects" enctype="multipart/form-data" id="tts-form">
+  <div class="row">
+    <label class="grow">Tiêu đề (tuỳ chọn)
+      <input name="title" placeholder="Ví dụ: Chương 1 — Ngày đầu tiên">
+    </label>
+  </div>
+
+  <label>Văn bản
+    <textarea name="text" id="text" rows="12" placeholder="Dán văn bản vào đây. Dùng # Tiêu đề để chia chương, hoặc cách 2 dòng trống giữa các phần."></textarea>
+  </label>
+  <div class="row small">
+    <label class="file">hoặc tải lên file .txt / .md <input type="file" name="file" accept=".txt,.md,text/plain,text/markdown" id="file"></label>
+    <span class="muted" id="charcount">0 ký tự</span>
+  </div>
+
+  <div class="grid">
+    <label>Giọng
+      <select name="voice_id" id="voice">
+        {% for v in voices %}<option value="{{ v.id }}">{{ v.name }} ({{ voice_refs[v.id]|length }} mẫu)</option>{% endfor %}
+      </select>
+    </label>
+    <label>Mẫu tham chiếu
+      <select name="ref_id" id="ref">
+        <option value="">Mặc định của hồ sơ</option>
+        {% for v in voices %}{% for r in voice_refs[v.id] %}
+          <option value="{{ r.id }}" data-voice="{{ v.id }}">#{{ r.id }} · {{ r.label }} · {{ '%.1f'|format(r.duration) }}s{% if r.is_default %} ★{% endif %}</option>
+        {% endfor %}{% endfor %}
+      </select>
+    </label>
+    <label>Mô hình
+      <select name="engine">
+        {% for k, label in engines.items() %}<option value="{{ k }}" {{ 'selected' if k == default_engine }}>{{ label }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Từ tiếng Anh
+      <select name="english_mode">
+        <option value="vietnamize">Việt hoá (Facebook → phây búc)</option>
+        <option value="native">Giữ nguyên, để mô hình tự đọc</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="grid">
+    <label>Tốc độ <output id="speed-out">1.00×</output>
+      <input type="range" name="speed" min="0.7" max="1.5" step="0.05" value="1.0" oninput="document.getElementById('speed-out').textContent = (+this.value).toFixed(2)+'×'">
+    </label>
+    <label>Nghỉ giữa câu <output id="ps-out">300 ms</output>
+      <input type="range" name="pause_sentence_ms" min="0" max="1500" step="50" value="300" oninput="document.getElementById('ps-out').textContent = this.value+' ms'">
+    </label>
+    <label>Nghỉ giữa đoạn <output id="pp-out">700 ms</output>
+      <input type="range" name="pause_paragraph_ms" min="0" max="3000" step="100" value="700" oninput="document.getElementById('pp-out').textContent = this.value+' ms'">
+    </label>
+  </div>
+
+  <div class="row">
+    <button type="button" class="secondary" id="preview-btn">Xem trước chuẩn hoá</button>
+    <button type="submit" class="primary">Tạo giọng đọc</button>
+  </div>
+  <pre class="preview" id="preview" hidden></pre>
+</form>
+
+{% if recent %}
+<h2>Gần đây</h2>
+<ul class="list">
+  {% for p in recent %}
+  <li><a href="/projects/{{ p.id }}">{{ p.title }}</a> <span class="badge {{ p.status }}">{{ STATUS[p.status] }}</span>
+    <span class="muted">{{ p.n_done }}/{{ p.n_total }} câu</span></li>
+  {% endfor %}
+</ul>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const text = document.getElementById('text');
+  const count = () => document.getElementById('charcount').textContent = text.value.length.toLocaleString('vi') + ' ký tự';
+  text.addEventListener('input', count);
+  document.getElementById('file').addEventListener('change', async (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    text.value = await f.text(); count(); e.target.value = '';
+  });
+  const voice = document.getElementById('voice'), ref = document.getElementById('ref');
+  const filterRefs = () => [...ref.options].forEach(o => { if (o.dataset.voice) o.hidden = o.dataset.voice !== voice.value; if (o.hidden && o.selected) ref.value = ''; });
+  voice && voice.addEventListener('change', filterRefs); voice && filterRefs();
+  document.getElementById('preview-btn').addEventListener('click', async () => {
+    const fd = new FormData(); fd.append('text', text.value);
+    fd.append('english_mode', document.querySelector('[name=english_mode]').value);
+    const r = await fetch('/api/preview', {method: 'POST', body: fd});
+    const pre = document.getElementById('preview'); pre.hidden = false;
+    pre.textContent = (await r.json()).text || '(trống)';
+  });
+</script>
+{% endblock %}

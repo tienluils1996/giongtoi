@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}{{ voice.name }} · {{ APP_NAME }}{% endblock %}
+{% block content %}
+<div class="head"><h1>{{ voice.name }}</h1></div>
+
+<div class="card tips">
+  <strong>Mẹo ghi âm cho giọng clone giống nhất</strong>
+  <ul>
+    <li>Phòng yên tĩnh, nhiều đồ mềm (rèm, chăn). Dùng mic rời hoặc mic MacBook; <b>tránh AirPods</b> (mic Bluetooth nén chất lượng thấp).</li>
+    <li>Ngồi cách mic ~20–30 cm, đọc tự nhiên như khi nói chuyện, đúng tốc độ bạn muốn giọng clone đọc.</li>
+    <li>Chỉ cần 1 mẫu 5–10 giây là dùng được ngay; ghi đủ 20 câu (~2–3 phút) để chọn mẫu tốt nhất và chuẩn bị cho fine-tune sau này.</li>
+  </ul>
+</div>
+
+<h2>Ghi âm theo câu mẫu</h2>
+<div class="card" id="recorder">
+  <div class="row">
+    <label class="grow">Câu số
+      <select id="prompt-select">
+        {% for p in prompts %}<option value="{{ loop.index0 }}">{{ loop.index }}{{ ' ✓' if p in recorded }} — {{ p[:50] }}…</option>{% endfor %}
+      </select>
+    </label>
+    <label>Phong cách <input id="rec-label" value="bình thường" size="12"></label>
+  </div>
+  <p class="prompt" id="prompt-text">{{ prompts[0] }}</p>
+  <div class="row">
+    <button class="primary" id="rec-btn">● Bắt đầu ghi</button>
+    <span class="meter"><span id="meter-bar"></span></span>
+    <span class="muted" id="rec-time">0.0s</span>
+  </div>
+  <div class="row" id="rec-review" hidden>
+    <audio controls id="rec-audio"></audio>
+    <button class="primary" id="rec-save">Lưu mẫu này</button>
+    <button class="secondary" id="rec-retry">Ghi lại</button>
+  </div>
+  <p class="muted small" id="rec-status"></p>
+</div>
+
+<h2>Tải lên file có sẵn</h2>
+<form class="card" id="upload-form">
+  <div class="grid">
+    <label>File âm thanh (wav, mp3, m4a, …) <input type="file" name="file" accept="audio/*" required></label>
+    <label>Phong cách <input name="label" value="bình thường"></label>
+  </div>
+  <label>Nội dung đã nói trong file (nên điền đúng từng chữ — bắt buộc nếu dùng F5-TTS)
+    <input name="transcript" placeholder="Ví dụ: xin chào, đây là giọng của tôi">
+  </label>
+  <div class="row">
+    <label class="check"><input type="checkbox" name="denoise" value="1" checked> Khử ồn</label>
+    <button class="primary">Tải lên</button>
+    <span class="muted small" id="upload-status"></span>
+  </div>
+</form>
+
+<h2>Các mẫu giọng ({{ refs|length }})</h2>
+{% if not refs %}<p class="muted">Chưa có mẫu nào.</p>{% endif %}
+<ul class="refs">
+{% for r in refs %}
+  <li class="card ref">
+    <div class="row">
+      <strong>{{ '★' if r.is_default else '' }} #{{ r.id }}</strong>
+      <audio controls preload="none" src="/media/{{ r.audio_path }}"></audio>
+      <span class="muted small">{{ '%.1f'|format(r.duration) }}s</span>
+      {% if r.duration < 3 %}<span class="err small">quá ngắn</span>{% elif r.duration > 12 %}<span class="warn small">dài &gt; 12s</span>{% endif %}
+      <span class="grow"></span>
+      {% if not r.is_default %}<form method="post" action="/voices/{{ voice.id }}/refs/{{ r.id }}/default"><button class="secondary">Đặt mặc định</button></form>{% endif %}
+      <form method="post" action="/voices/{{ voice.id }}/refs/{{ r.id }}/delete" onsubmit="return confirm('Xoá mẫu này?')"><button class="danger">Xoá</button></form>
+    </div>
+    <form method="post" action="/voices/{{ voice.id }}/refs/{{ r.id }}/update" class="row small">
+      <input name="label" value="{{ r.label }}" size="12">
+      <input name="transcript" value="{{ r.transcript }}" class="grow" placeholder="(chưa có transcript)">
+      <button class="secondary">Lưu</button>
+    </form>
+  </li>
+{% endfor %}
+</ul>
+
+<form method="post" action="/voices/{{ voice.id }}/delete" onsubmit="return confirm('Xoá hồ sơ giọng và toàn bộ mẫu?')">
+  <button class="danger">Xoá hồ sơ giọng</button>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.VOICE_ID = {{ voice.id|tojson }};
+  window.PROMPTS = {{ prompts|tojson }};
+</script>
+<script src="/static/recorder.js"></script>
+{% endblock %}
