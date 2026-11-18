@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import shutil
 import tempfile
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -201,7 +202,7 @@ def create_app(studio: Studio | None = None, start_worker: bool = True) -> FastA
     @app.get("/voices", response_class=HTMLResponse)
     def voices(request: Request):
         vs = studio.store.list_voices()
-        return render(request, "voices.html", voices=vs,
+        return render(request, "voices.html", voices=vs, prompts=RECORDING_PROMPTS,
                       refs={v["id"]: studio.store.list_refs(v["id"]) for v in vs})
 
     @app.post("/voices")
@@ -219,22 +220,38 @@ def create_app(studio: Studio | None = None, start_worker: bool = True) -> FastA
         return render(request, "voice.html", voice=v, refs=refs, prompts=RECORDING_PROMPTS,
                       recorded=recorded)
 
-    @app.post("/api/voices/{vid}/refs")
-    async def add_ref(vid: str, file: UploadFile = File(...), transcript: str = Form(""),
-                      label: str = Form("bình thường"), denoise: str = Form("1")):
-        if not studio.store.get_voice(vid):
-            raise HTTPException(404)
+    async def save_upload(vid: str, file: UploadFile, transcript: str, label: str, denoise: str) -> int:
         suffix = Path(file.filename or "rec.webm").suffix or ".webm"
         with tempfile.TemporaryDirectory() as td:
             tmp = Path(td) / f"upload{suffix}"
             tmp.write_bytes(await file.read())
             try:
-                rid = studio.add_reference(vid, tmp, transcript=transcript, label=label or "bình thường",
-                                           denoise=denoise == "1")
+                return studio.add_reference(vid, tmp, transcript=transcript.strip(),
+                                            label=label or "bình thường", denoise=denoise == "1")
             except Exception as e:
                 log.exception("Không xử lý được file âm thanh")
                 raise HTTPException(400, f"Không xử lý được file âm thanh: {e}")
-        return studio.store.get_ref(rid)
+
+    @app.post("/api/voices")
+    async def create_voice_with_sample(name: str = Form(...), file: UploadFile = File(...),
+                                       transcript: str = Form(""), label: str = Form("bình thường"),
+                                       denoise: str = Form("1")):
+        """Tạo hồ sơ giọng + mẫu đầu tiên trong một bước (thu âm mic hoặc chọn file)."""
+        vid = studio.create_voice(name.strip() or "Giọng của tôi")
+        try:
+            rid = await save_upload(vid, file, transcript, label, denoise)
+        except HTTPException:
+            studio.store.delete_voice(vid)  # không để lại hồ sơ rỗng
+            shutil.rmtree(studio.paths.voices / vid, ignore_errors=True)
+            raise
+        return {"voice_id": vid, "ref": studio.store.get_ref(rid)}
+
+    @app.post("/api/voices/{vid}/refs")
+    async def add_ref(vid: str, file: UploadFile = File(...), transcript: str = Form(""),
+                      label: str = Form("bình thường"), denoise: str = Form("1")):
+        if not studio.store.get_voice(vid):
+            raise HTTPException(404)
+        return studio.store.get_ref(await save_upload(vid, file, transcript, label, denoise))
 
     @app.post("/voices/{vid}/refs/{rid}/default")
     def set_default(vid: str, rid: int):

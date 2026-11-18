@@ -147,3 +147,11 @@ audio { height: 36px; max-width: 100%; }
   .prompt { font-size: 18px; }
   .table { font-size: 13px; }
 }
+
+/* Tạo hồ sơ giọng: chọn thu âm hoặc file */
+.card-title { margin: 0 0 12px; font-size: 18px; }
+.tabs { display: flex; gap: 4px; margin: 16px 0 12px; padding: 4px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; width: fit-content; max-width: 100%; flex-wrap: wrap; }
+.tab { background: transparent; color: var(--muted); border: 0; padding: 8px 14px; border-radius: 7px; cursor: pointer; font: inherit; }
+.tab.active { background: var(--card); color: var(--text); box-shadow: 0 1px 2px rgb(0 0 0 / .15); }
+#new-voice section { margin-bottom: 12px; }
+#new-voice audio { max-width: 100%; }

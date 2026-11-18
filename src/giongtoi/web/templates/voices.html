@@ -3,6 +3,7 @@
 <h1>Giọng của tôi</h1>
 <p class="muted">Mỗi hồ sơ giọng chứa nhiều mẫu tham chiếu (ví dụ “bình thường”, “hào hứng”). Mẫu có dấu ★ được dùng mặc định.</p>
 
+{% if voices %}
 <div class="cards">
 {% for v in voices %}
   <a class="card voice" href="/voices/{{ v.id }}">
@@ -11,9 +12,109 @@
   </a>
 {% endfor %}
 </div>
+{% endif %}
 
-<form class="card row" method="post" action="/voices">
-  <label class="grow">Tạo hồ sơ giọng mới <input name="name" placeholder="Ví dụ: Giọng của tôi" required></label>
-  <button class="primary">Tạo</button>
-</form>
+<div class="card" id="new-voice">
+  <h2 class="card-title">Tạo hồ sơ giọng mới</h2>
+  <label>Tên hồ sơ <input id="nv-name" placeholder="Ví dụ: Giọng của tôi" value="{{ 'Giọng của tôi' if not voices else '' }}"></label>
+
+  <div class="tabs" role="tablist">
+    <button class="tab active" data-tab="mic" role="tab">🎙 Thu âm từ micro</button>
+    <button class="tab" data-tab="file" role="tab">📁 Chọn file âm thanh</button>
+  </div>
+
+  <!-- Thu âm trực tiếp -->
+  <section data-panel="mic">
+    <p class="muted small">Bấm <b>Bắt đầu ghi</b> rồi đọc to, tự nhiên câu bên dưới (5–10 giây). Phòng yên tĩnh, tránh AirPods.</p>
+    <p class="prompt" id="nv-prompt">{{ prompts[0] }}</p>
+    <div class="row small"><button class="secondary" id="nv-next">↻ Đổi câu khác</button>
+      <span class="muted">Muốn tự nói câu khác? Sửa nội dung trong ô “Nội dung đã nói” sau khi ghi.</span></div>
+    <div class="row">
+      <button class="primary" id="rec-btn">● Bắt đầu ghi</button>
+      <span class="meter"><span id="meter-bar"></span></span>
+      <span class="muted" id="rec-time">0.0s</span>
+    </div>
+    <div id="rec-review" hidden>
+      <div class="row"><audio controls id="rec-audio"></audio>
+        <button class="secondary" id="rec-retry">Ghi lại</button></div>
+    </div>
+    <p class="muted small" id="rec-status"></p>
+  </section>
+
+  <!-- Chọn file -->
+  <section data-panel="file" hidden>
+    <label>File âm thanh (wav, mp3, m4a, …) — tốt nhất 5–12 giây, chỉ có giọng bạn
+      <input type="file" id="nv-file" accept="audio/*"></label>
+    <audio controls id="nv-file-audio" hidden></audio>
+  </section>
+
+  <label>Nội dung đã nói (đúng từng chữ — cần cho F5-TTS, giúp VieNeu bắt chước tốt hơn)
+    <input id="nv-transcript" value="{{ prompts[0] }}"></label>
+  <div class="row">
+    <label class="check"><input type="checkbox" id="nv-denoise" checked> Khử ồn</label>
+    <span class="grow"></span>
+    <span class="muted small" id="nv-status"></span>
+    <button class="primary" id="nv-save">Tạo hồ sơ giọng</button>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>window.PROMPTS = {{ prompts|tojson }};</script>
+<script src="/static/mic.js"></script>
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  let tab = 'mic', promptIdx = 0;
+  const transcript = $('nv-transcript'), st = $('nv-status');
+
+  const mic = createMic({
+    btn: $('rec-btn'), meter: $('meter-bar'), timeEl: $('rec-time'), status: $('rec-status'),
+    review: $('rec-review'), audioEl: $('rec-audio'), retryBtn: $('rec-retry'),
+  });
+
+  document.querySelectorAll('.tab').forEach((b) => b.addEventListener('click', (e) => {
+    e.preventDefault();
+    tab = b.dataset.tab;
+    document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('active', x === b));
+    document.querySelectorAll('[data-panel]').forEach((p) => (p.hidden = p.dataset.panel !== tab));
+    if (tab === 'file' && transcript.value === PROMPTS[promptIdx]) transcript.value = '';
+    if (tab === 'mic' && !transcript.value) transcript.value = PROMPTS[promptIdx];
+  }));
+
+  $('nv-next').addEventListener('click', (e) => {
+    e.preventDefault();
+    promptIdx = (promptIdx + 1) % PROMPTS.length;
+    $('nv-prompt').textContent = transcript.value = PROMPTS[promptIdx];
+    mic.reset();
+  });
+
+  $('nv-file').addEventListener('change', (e) => {
+    const f = e.target.files[0], a = $('nv-file-audio');
+    if (f) { a.src = URL.createObjectURL(f); a.hidden = false; }
+  });
+
+  $('nv-save').addEventListener('click', async (e) => {
+    e.preventDefault();
+    const fd = new FormData();
+    if (tab === 'mic') {
+      if (!mic.blob()) { st.textContent = 'Hãy ghi âm trước.'; return; }
+      fd.append('file', mic.blob(), mic.fileName());
+    } else {
+      const f = $('nv-file').files[0];
+      if (!f) { st.textContent = 'Hãy chọn một file âm thanh.'; return; }
+      fd.append('file', f, f.name);
+    }
+    fd.append('name', $('nv-name').value.trim() || 'Giọng của tôi');
+    fd.append('transcript', transcript.value.trim());
+    fd.append('denoise', $('nv-denoise').checked ? '1' : '0');
+    st.textContent = 'Đang xử lý (khử ồn, cắt khoảng lặng)…';
+    $('nv-save').disabled = true;
+    const r = await fetch('/api/voices', { method: 'POST', body: fd });
+    $('nv-save').disabled = false;
+    if (!r.ok) { st.textContent = 'Lỗi: ' + (await r.json()).detail; return; }
+    location.href = '/voices/' + (await r.json()).voice_id;
+  });
+})();
+</script>
 {% endblock %}

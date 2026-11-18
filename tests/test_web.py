@@ -105,3 +105,24 @@ def test_pause_resume_routes(client, studio):
     assert studio.store.get_project(pid)["status"] == "paused"
     client.post(f"/projects/{pid}/resume")
     assert studio.store.get_project(pid)["status"] == "queued"
+
+
+def test_create_voice_with_sample_in_one_step(client, studio):
+    r = client.post("/api/voices", files={"file": ("rec.wav", wav_bytes(), "audio/wav")},
+                    data={"name": "Giọng của tôi", "transcript": "xin chào", "denoise": "0"})
+    assert r.status_code == 200, r.text
+    vid = r.json()["voice_id"]
+    refs = studio.store.list_refs(vid)
+    assert len(refs) == 1 and refs[0]["is_default"] == 1 and refs[0]["transcript"] == "xin chào"
+
+
+def test_create_voice_with_bad_audio_leaves_no_empty_profile(client, studio):
+    r = client.post("/api/voices", files={"file": ("x.wav", b"not audio", "audio/wav")},
+                    data={"name": "Hỏng", "denoise": "0"})
+    assert r.status_code == 400
+    assert studio.store.list_voices() == []
+
+
+def test_voices_page_offers_mic_and_file(client):
+    html = client.get("/voices").text
+    assert 'id="rec-btn"' in html and 'type="file"' in html
