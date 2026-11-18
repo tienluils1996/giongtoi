@@ -19,6 +19,35 @@ def _wait_ready(url: str, timeout: float = 30) -> None:
             time.sleep(0.2)
 
 
+MIC_REASON = "GiọngTôi cần micro để ghi mẫu giọng nói của bạn (xử lý hoàn toàn trên máy)."
+
+
+def enable_webkit_mic(origin_host: str = "127.0.0.1") -> None:
+    """Cho phép getUserMedia trong cửa sổ pywebview (macOS).
+
+    WebKit chỉ bật navigator.mediaDevices khi Info.plist của tiến trình có
+    NSMicrophoneUsageDescription — tiến trình python không có bundle, nên ghi giá trị
+    vào infoDictionary lúc chạy. pywebview cũng không xử lý yêu cầu quyền micro,
+    nên thêm phương thức WKUIDelegate tự cấp quyền cho riêng server cục bộ của app.
+    """
+    import AppKit
+    import objc
+    from webview.platforms.cocoa import BrowserView
+
+    info = AppKit.NSBundle.mainBundle().infoDictionary()
+    info["NSMicrophoneUsageDescription"] = MIC_REASON
+
+    WK_GRANT, WK_DENY = 1, 2  # WKPermissionDecision
+
+    class BrowserDelegate(objc.Category(BrowserView.BrowserDelegate)):
+        def webView_requestMediaCapturePermissionForOrigin_initiatedByFrame_type_decisionHandler_(
+            self, webview, origin, frame, media_type, handler
+        ):
+            handler(WK_GRANT if str(origin.host()) in (origin_host, "localhost") else WK_DENY)
+
+    del BrowserDelegate  # category đã được gắn vào lớp gốc khi định nghĩa
+
+
 def run_desktop(port: int) -> None:
     import uvicorn
 
@@ -41,6 +70,16 @@ def run_desktop(port: int) -> None:
                 time.sleep(3600)
         except KeyboardInterrupt:
             return
+
+    import sys
+
+    if sys.platform == "darwin":
+        try:
+            enable_webkit_mic()
+        except Exception:  # không để lỗi micro chặn việc mở app
+            import logging
+
+            logging.getLogger("giongtoi").exception("Không bật được micro cho cửa sổ app")
 
     webview.create_window(APP_NAME, url, width=1100, height=820, min_size=(720, 560))
     webview.start()
